@@ -48,7 +48,7 @@ def improvement(est, ref, mix):
 @pytest.mark.parametrize('mask_type', ['soft', 'binary'])
 def test_lead_backing_pan_and_pitch(mask_type):
     mix, lead, back = make()
-    sep = spatial.LeadBacking(mix, mask_type=mask_type)
+    sep = spatial.LeadBacking(mix, mask_type=mask_type, pan_width=0.25, pitch_weight=1.0)
     sep.run()
     est_lead, est_back = sep.make_audio_signals()
     assert improvement(est_lead, lead, mix) > (4 if mask_type == 'soft' else 3)
@@ -66,15 +66,20 @@ def test_lead_backing_pitch_only_mono():
     assert improvement(est_back, back, mix) > 10
 
 
-def test_lead_backing_pan_only():
-    # pan alone (pitch off) still pulls the panned backing out
+def test_lead_backing_defaults_stereo_are_pan_only():
+    # defaults on stereo: narrow pan window, pitch off (tuned on real stems)
     mix, lead, back = make()
-    sep = spatial.LeadBacking(mix, pitch_weight=0.0)
+    sep = spatial.LeadBacking(mix)
     sep.run()
     est_lead, est_back = sep.make_audio_signals()
-    assert sep.f0 is None
+    assert sep.pitch_weight == 0 and sep.f0 is None
     assert improvement(est_lead, lead, mix) > 2
     assert improvement(est_back, back, mix) > 8
+
+
+def test_lead_backing_defaults_mono_use_pitch():
+    mix, _, _ = make(mono=True)
+    assert spatial.LeadBacking(mix).pitch_weight == 1.0
 
 
 def test_lead_backing_off_center_lead():

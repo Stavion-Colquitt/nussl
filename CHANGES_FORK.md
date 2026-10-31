@@ -58,7 +58,24 @@ Regenerated with `NUSSL_OVERWRITE_REGRESSION=1`, old -> new SI-SDR (dB):
 Splits a vocals-only recording into lead and backing vocals from three cues: pan position
 (level-based pan index x inter-channel coherence), the lead's harmonic comb (pYIN on the mid
 signal; tolerance never narrower than the STFT main lobe), and an optional level prior.
-Cues are combined as weighted log-odds, so a cue with no evidence adds nothing. On synthetic
-tests (lead + a harmony a major third up, each backing pan position its own take) the soft
-masks improve SI-SDR by about +6 dB (lead) and +16 dB (backing). A unison double panned with
+Cues are combined as weighted log-odds, so a cue with no evidence adds nothing.
+
+Defaults were tuned on real multitrack stems (an independent artist's own sessions, two songs,
+60 s each; the lead is recorded mono and centered, backing layers panned around it). SI-SDR in
+dB, each estimate against the true stem; "baseline" = all vocals used as the estimate:
+
+| | Lead | Backing |
+|---|---|---|
+| true vocals, baseline | +2.5 / +7.5 | -2.6 / -7.6 |
+| true vocals, first version (pan width 0.25, pan + pitch) | +3.6 / +8.9 | -1.3 / -0.7 |
+| true vocals, pan only, width 0.01 | +13.5 / +15.6 | +10.9 / +7.5 |
+| Demucs vocals of the full mix, baseline | +1.6 | -3.0 |
+| Demucs vocals, first version | +2.4 | -2.1 |
+| Demucs vocals, **defaults (pan only, width 0.03)** | **+7.6** | **+6.7** |
+
+(Song A / Song B where two numbers are given; Demucs rows are song A.) The pitch cue lowered
+every real-data score -- the backing in these songs is mostly doubles at the lead's pitch, and
+pYIN slips onto harmonies -- so it is off for stereo input and kept as the mono fallback. On
+Demucs output a slightly wider window (0.03) beats 0.01: separation leaves some stereo residue
+on the lead. `lead_pan` is a DAW pan position (constant-power law). A unison double panned with
 the lead is out of reach for any of these cues.

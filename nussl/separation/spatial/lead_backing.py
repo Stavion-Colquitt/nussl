@@ -29,11 +29,19 @@ class LeadBacking(MaskSeparationBase):
 
     Run a vocals / accompaniment separator first (e.g. Demucs) -- this expects vocals only.
 
+    Defaults were tuned on real multitrack stems (two songs, 60 s each: true lead + backing
+    summed, and the Demucs vocals of the full mix); see CHANGES_FORK.md for the numbers.
+
     Parameters:
         input_audio_signal (AudioSignal): vocals to split (stereo for the pan cue).
         lead_pan (float): pan position of the lead, -1 (left) .. 0 (center) .. 1 (right).
         pan_width (float): how far from ``lead_pan`` a bin can sit and still count as lead.
+          Default 0.03: a lead recorded mono and placed in the center has a pan index of
+          ~0 even after vocal separation, so anything off-center is backing.
         pan_weight, pitch_weight, level_weight (float): relative weight of each cue.
+          ``pitch_weight=None`` (default) means 0 for stereo input and 1 for mono: on real
+          mixes the pitch cue mostly costs (doubles share the lead's pitch, pYIN slips onto
+          harmonies), so it is the fallback for mono only.
         fmin, fmax (float): f0 search range for the lead (Hz).
         n_harmonics (int): partials of the lead's comb.
         harmonic_width (float): tolerance around each partial, in cents.
@@ -47,11 +55,13 @@ class LeadBacking(MaskSeparationBase):
         lead_score (np.ndarray): combined score per bin (freq x time).
     """
 
-    def __init__(self, input_audio_signal, lead_pan=0.0, pan_width=0.25, pan_weight=1.0,
-                 pitch_weight=1.0, level_weight=0.0, fmin=70.0, fmax=1000.0, n_harmonics=20,
+    def __init__(self, input_audio_signal, lead_pan=0.0, pan_width=0.03, pan_weight=1.0,
+                 pitch_weight=None, level_weight=0.0, fmin=70.0, fmax=1000.0, n_harmonics=20,
                  harmonic_width=50.0, level_floor_db=30.0, mask_type='soft', mask_threshold=0.5):
         super().__init__(input_audio_signal=input_audio_signal, mask_type=mask_type,
                          mask_threshold=mask_threshold)
+        if pitch_weight is None:   # auto: pan beats pitch on real stereo mixes; mono has only pitch
+            pitch_weight = 0.0 if self.audio_signal.num_channels >= 2 else 1.0
         if not -1.0 <= lead_pan <= 1.0:
             raise SeparationException('lead_pan must be between -1 (left) and 1 (right)')
         if pan_width <= 0 or harmonic_width <= 0:
@@ -72,7 +82,10 @@ class LeadBacking(MaskSeparationBase):
         L, R = self.stft[..., 0], self.stft[..., 1]
         aL, aR = np.abs(L), np.abs(R)
         self.pan_index = (aR - aL) / (aL + aR + 1e-12)               # -1 left .. +1 right
-        closeness = np.exp(-0.5 * ((self.pan_index - self.lead_pan) / self.pan_width) ** 2)
+        # lead_pan is a DAW pan position (constant-power law); this is its level-based pan index
+        a = (self.lead_pan + 1) * np.pi / 4
+        target = (np.sin(a) - np.cos(a)) / (np.sin(a) + np.cos(a))
+        closeness = np.exp(-0.5 * ((self.pan_index - target) / self.pan_width) ** 2)
         coherence = np.clip(np.cos(np.angle(L) - np.angle(R)), 0.0, 1.0)
         return closeness * (0.5 + 0.5 * coherence)
 
