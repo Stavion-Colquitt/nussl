@@ -15,10 +15,13 @@
 
 --------------------------------------------------------------------------------
 
-> [!CAUTION]
-**NUSSL IS DEPRECATED** <br />
-There will be no further any updates, bug fixes, or answers for open issues. We're leaving the code here as is for reference and educational purposes.
-
+> [!NOTE]
+> **This is an unofficial, community-maintained fork.** The original nussl by the
+> [Interactive Audio Lab](http://music.cs.northwestern.edu/) was archived in December 2024
+> and marked deprecated. This fork keeps it running on current Python, NumPy, SciPy, librosa
+> and PyTorch, works around the retired External File Zoo, and adds new algorithms. All
+> credit for nussl itself goes to its original authors; see [CHANGES_FORK.md](CHANGES_FORK.md)
+> for exactly what changed here.
 
 nussl (pronounced ["nuzzle"](http://www.thefreedictionary.com/nuzzle)) is a flexible, object oriented
 Python audio source separation library created by the 

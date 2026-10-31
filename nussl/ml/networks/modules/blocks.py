@@ -267,7 +267,7 @@ class MelProjection(nn.Module):
             )
             self.add_module('transform', nn.Linear(*shape))
 
-            mel_filters = librosa.filters.mel(sample_rate, 2 * (num_frequencies - 1), num_mels)
+            mel_filters = librosa.filters.mel(sr=sample_rate, n_fft=2 * (num_frequencies - 1), n_mels=num_mels)
             if normalize:
                 mel_filters = (mel_filters.T / (mel_filters.sum(axis=1) + 1e-8)).T
             filter_bank = (

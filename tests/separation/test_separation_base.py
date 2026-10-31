@@ -68,7 +68,7 @@ def test_separation_base_interact(mix_source_folder, monkeypatch):
         def launch(self, *args, **kwargs):
             pass
 
-    import gradio
+    gradio = pytest.importorskip('gradio')
     
     monkeypatch.setattr(separation.SeparationBase, 'make_audio_signals', dummy_run)
     monkeypatch.setattr(separation.SeparationBase, 'run', dummy_run)

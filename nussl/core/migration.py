@@ -78,7 +78,7 @@ class SafeModelLoader(object):
         self.eval = None
 
     def load(self, model_path, device='cpu', expected_eval='BssEvalScale'):
-        model_dict = torch.load(model_path, map_location=device)
+        model_dict = torch.load(model_path, map_location=device, weights_only=False)  # nussl checkpoints carry metadata; load only files you trust
         metadata = model_dict['metadata']
         metadata = self._get_moved(metadata, model_dict, model_path)
         self.eval = expected_eval

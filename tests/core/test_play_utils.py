@@ -1,3 +1,4 @@
+import shutil
 import sys
 import builtins
 import nussl
@@ -69,6 +70,8 @@ def test_musdb_fail_to_import(monkeypatch):
     monkeypatch.undo()
 
 def test_play_audio():
+    if shutil.which('ffplay') is None:
+        pytest.skip('ffplay is not installed')
     audio_signal = nussl.AudioSignal(
         audio_data_array=np.zeros(100), sample_rate=1000)
     nussl.play_utils.play(audio_signal)
@@ -78,8 +81,11 @@ def test_play_audio():
 def test_multitrack():
     nussl.utils.seed(0)
 
-    audio_path = nussl.efz_utils.download_audio_file(
-        'marimba_timbre.mp3')
+    try:
+        audio_path = nussl.efz_utils.download_audio_file(
+            'marimba_timbre.mp3')
+    except nussl.efz_utils.NoConnectivityError:
+        pytest.skip('marimba_timbre.mp3 is gone with the EFZ server')
     audio_signal = nussl.AudioSignal(audio_path, duration=1)
     separator = nussl.separation.primitive.TimbreClustering(
         audio_signal, 2, 1, mask_type='binary')

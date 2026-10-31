@@ -17,8 +17,15 @@ DUET
 .. autoclass:: nussl.separation.spatial.Duet
     :autosummary:
 
+Lead vs backing vocals (pan + pitch + level)
+---------------------------------------------
+
+.. autoclass:: nussl.separation.spatial.LeadBacking
+    :autosummary:
+
 """
 
 from .spatial_clustering import SpatialClustering
 from .projet import Projet
 from .duet import Duet
+from .lead_backing import LeadBacking

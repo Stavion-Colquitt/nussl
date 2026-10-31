@@ -12,6 +12,19 @@ import numpy as np
 from six.moves.urllib_parse import urljoin
 
 
+def _efz_up():
+    try:
+        nussl.efz_utils._download_all_metadata(constants.NUSSL_EFZ_AUDIO_METADATA_URL)
+        return True
+    except Exception:
+        return False
+
+
+# These exercise the live EFZ server (metadata, hashes). It was retired; the mirror fallback
+# is covered in test_efz_mirror.py.
+pytestmark = pytest.mark.skipif(not _efz_up(), reason='the nussl EFZ server is offline')
+
+
 def get_smallest_file(available_files):
     smallest = np.inf
     best = 0

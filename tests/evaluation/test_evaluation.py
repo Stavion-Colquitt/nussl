@@ -241,7 +241,7 @@ def test_bss_eval_v4(estimated_and_true_sources):
             _oracle = oracle_scores[key][metric]
             _random = random_scores[key][metric]
 
-            assert np.alltrue(_oracle > _random)
+            assert np.all(_oracle > _random)
 
 
 def test_scale_bss_eval(estimated_and_true_sources):
@@ -319,7 +319,7 @@ def test_bss_eval_scale(estimated_and_true_sources):
                     _oracle = oracle_scores[key][metric]
                     _random = random_scores[key][metric]
 
-                    assert np.alltrue(_oracle > _random)
+                    assert np.all(_oracle > _random)
 
             save_scores(tmpdir, oracle_scores, f'oracle.json')
             save_scores(tmpdir, random_scores, f'random.json')

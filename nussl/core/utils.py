@@ -4,6 +4,8 @@ any specific algorithm or that are shared between algorithms.
 """
 
 import warnings
+import sys
+import tempfile
 
 import numpy as np
 import torch
@@ -415,7 +417,7 @@ def visualize_spectrogram(audio_signal, ch=0, do_mono=False, x_axis='time',
 
     if y_axis == 'mel':
         # Monkey patch for https://github.com/librosa/librosa/issues/1240
-        data = librosa.feature.melspectrogram(audio_signal.get_channel(ch),
+        data = librosa.feature.melspectrogram(y=audio_signal.get_channel(ch),
                                               sr=audio_signal.sample_rate)
         kwargs.update({'fmax': audio_signal.sample_rate / 2.})
     else:
@@ -437,7 +439,7 @@ def visualize_waveform(audio_signal, ch=0, do_mono=False, x_axis='time', **kwarg
         ch (int, optional): Which channel to plot. Defaults to 0.
         do_mono (bool, optional): Make the AudioSignal mono. Defaults to False.
         x_axis (str, optional): x_axis argument to librosa.display.waveplot. Defaults to 'time'.
-        kwargs: Additional keyword arguments to librosa.display.waveplot.
+        kwargs: Additional keyword arguments to librosa.display.waveshow.
     """
     import librosa.display
     import matplotlib.pyplot as plt
@@ -446,7 +448,7 @@ def visualize_waveform(audio_signal, ch=0, do_mono=False, x_axis='time', **kwarg
         audio_signal = audio_signal.to_mono(overwrite=False)
     
     data = np.asfortranarray(audio_signal.audio_data[ch])
-    librosa.display.waveplot(data, sr=audio_signal.sample_rate, x_axis=x_axis, **kwargs)
+    librosa.display.waveshow(data, sr=audio_signal.sample_rate, axis=x_axis, **kwargs)
     plt.ylabel('Amplitude')
 
 def visualize_sources_as_waveform(audio_signals, ch=0, do_mono=False, x_axis='time', 
@@ -467,7 +469,7 @@ def visualize_sources_as_waveform(audio_signals, ch=0, do_mono=False, x_axis='ti
           Defaults to None, which uses the default matplotlib color cycle.
         alphas (list, optional): Sequence of alpha transparency to use for each signal. 
           Defaults to None.
-        kwargs: Additional keyword arguments to librosa.display.waveplot.
+        kwargs: Additional keyword arguments to librosa.display.waveshow.
     """
     import matplotlib.pyplot as plt
 
@@ -595,8 +597,9 @@ def visualize_sources_as_masks(audio_signals, ch=0, do_mono=False, x_axis='time'
     axes.set_ylim(y_coords.min(), y_coords.max())
 
     # Set up axis scaling
-    librosa.display.__scale_axes(axes, x_axis, 'x')
-    librosa.display.__scale_axes(axes, y_axis, 'y')
+    # librosa >= 0.10 private helper; tempo limits are librosa's own specshow defaults
+    librosa.display.__scale_axes(axes, x_axis, 'x', 16, 480)
+    librosa.display.__scale_axes(axes, y_axis, 'y', 16, 480)
 
     # Construct tickers and locators
     librosa.display.__decorate_axis(axes.xaxis, x_axis)
@@ -606,6 +609,14 @@ def visualize_sources_as_masks(audio_signals, ch=0, do_mono=False, x_axis='time'
     if show_legend:
         plt.legend(handles=legend_elements,  
             bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=2)
+
+def _named_temp_file(suffix=''):
+    """A NamedTemporaryFile other programs (ffmpeg, soundfile) can open while we hold it --
+    on Windows that needs delete_on_close=False (Python 3.12+); removed by _close_temp_files."""
+    if sys.version_info >= (3, 12):
+        return tempfile.NamedTemporaryFile(suffix=suffix, delete=True, delete_on_close=False)
+    return tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+
 
 @contextmanager
 def _close_temp_files(tmpfiles):

@@ -952,6 +952,7 @@ class AudioSignal(object):
         Returns:
             np.ndarray: Window returned by scipy.signa.get_window
         """
+        window_type = {'hanning': 'hann'}.get(window_type, window_type)  # scipy dropped the alias
         if window_type == constants.WINDOW_SQRT_HANN:
             window = np.sqrt(scipy.signal.get_window(
                 'hann', window_length
@@ -1431,7 +1432,7 @@ class AudioSignal(object):
         """
         if win_len is not None:
             hop_len = win_len // 2 if hop_len is None else hop_len
-            rms_func = lambda arr: librosa.feature.rms(arr, frame_length=win_len,
+            rms_func = lambda arr: librosa.feature.rms(y=arr, frame_length=win_len, pad_mode='reflect',
                                                        hop_length=hop_len)[0, :]
         else:
             rms_func = lambda arr: np.sqrt(np.mean(np.square(arr)))
@@ -1489,7 +1490,7 @@ class AudioSignal(object):
 
         for channel in self.get_channels():
             resampled_channel = librosa.resample(
-                channel, self.sample_rate, new_sample_rate, **kwargs)
+                channel, orig_sr=self.sample_rate, target_sr=new_sample_rate, **kwargs)
             resampled_signal.append(resampled_channel)
 
         self.audio_data = np.array(resampled_signal)

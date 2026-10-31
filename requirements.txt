@@ -4,7 +4,7 @@ matplotlib
 museval
 musdb
 pyyaml
-zarr
+zarr>=2.11,<3
 ffmpy
 torch
 pytorch-ignite

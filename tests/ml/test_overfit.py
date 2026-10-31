@@ -30,7 +30,7 @@ def test_overfit_a(mix_source_folder):
     dataset.cache_populated = True
 
     dataloader = torch.utils.data.DataLoader(
-        dataset, shuffle=True, batch_size=len(dataset), num_workers=2)
+        dataset, shuffle=True, batch_size=len(dataset), num_workers=0 if os.name == "nt" else 2)  # Windows worker spawn is slow / loses patches
 
     # create the model, based on the first item in the dataset
     # second bit of the shape is the number of features
@@ -81,7 +81,7 @@ def test_overfit_a(mix_source_folder):
         model_path = os.path.join(
             trainer.state.output_folder, 'checkpoints', 'best.model.pth')
         state_dict = torch.load(
-            model_path, map_location=lambda storage, loc: storage)
+            model_path, map_location=lambda storage, loc: storage, weights_only=False)
         model.load_state_dict(state_dict['state_dict'])
 
         history = state_dict['metadata']['trainer.state.epoch_history']
@@ -92,5 +92,5 @@ def test_overfit_a(mix_source_folder):
             plt.plot(np.array(history[key]).reshape(-1, ))
             plt.savefig(os.path.join(
                 trainer.state.output_folder, 'plots',
-                f"epoch:{key.replace('/', ':')}.png"))
+                f"epoch_{key.replace('/', '_').replace(':', '_')}.png"))  # ':' is not allowed in Windows file names
 

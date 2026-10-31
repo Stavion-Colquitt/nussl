@@ -102,7 +102,7 @@ def test_dataset_base(benchmark_audio, monkeypatch):
         transforms.ToSeparationModel()
     ])
 
-    dataloader = torch.utils.data.DataLoader(_dataset, shuffle=False, num_workers=8)
+    dataloader = torch.utils.data.DataLoader(_dataset, shuffle=False, num_workers=0 if os.name == "nt" else 8)  # Windows spawns workers: monkeypatches don't survive
     assert len(list(dataloader)) == len(_dataset)
     for idx, batch in enumerate(dataloader):
         assert torch.allclose(batch['mix_magnitude'][0], _dataset[idx]['mix_magnitude'])

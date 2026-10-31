@@ -1,3 +1,4 @@
+import sys
 import pytest 
 from nussl.separation import primitive, SeparationException
 import numpy as np
@@ -142,6 +143,8 @@ def test_melodia(
     pytest.raises(
         SeparationException, primitive.Melodia, mix)
     
+    if not nussl.vamp_imported or sys.platform == 'win32':  # the bundled Melodia plugin is macOS / Linux only
+        pytest.skip('vamp + the Melodia plugin are not available here')
     nussl.vamp_imported = True
 
     os.environ['VAMP_PATH'] = (

@@ -1,5 +1,4 @@
 import numpy as np
-import museval
 
 from .evaluation_base import EvaluationBase
 
@@ -194,6 +193,7 @@ class BSSEvalV4(BSSEvaluationBase):
         references = np.transpose(references, (2, 0, 1))
         estimates = np.transpose(estimates, (2, 0, 1))
 
+        import museval.metrics  # lazy: museval pulls in musdb -> ffmpeg at import time
         sdr, isr, sir, sar, _ = museval.metrics.bss_eval(
             references, estimates, compute_permutation=False, **kwargs)
 

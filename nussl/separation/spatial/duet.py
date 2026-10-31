@@ -224,7 +224,7 @@ class Duet(MaskSeparationBase):
 
         # Compute the freq. matrix for later use in phase calculations
         n_time_bins = len(self.audio_signal.time_bins_vector)
-        wmat = np.array(np.tile(np.mat(
+        wmat = np.array(np.tile(np.asmatrix(
             self.audio_signal.freq_vector).T, (1, n_time_bins))) * (
             2 * np.pi / sample_rate)
         wmat += constants.EPSILON
@@ -361,7 +361,7 @@ class Duet(MaskSeparationBase):
 
         # TODO: This is very ugly. Make this readable.
         # form the augmented matrix (rows and columns added to top, bottom, and sides)
-        matrix = np.mat(matrix)  # make sure Mat is a Numpy matrix
+        matrix = np.asmatrix(matrix)  # make sure Mat is a Numpy matrix
         augmented_matrix = np.vstack(
             [
                 np.hstack(

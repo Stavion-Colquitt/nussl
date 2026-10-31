@@ -24,10 +24,10 @@ DEFAULT_MAX_VAL = 2 ** 16  #: (int): Max value of 16-bit audio file (unsigned)
 EPSILON = 1e-16  #: (float): epsilon for determining small values
 MAX_FREQUENCY = DEFAULT_SAMPLE_RATE // 2  #: (int): Maximum frequency representable. 22050 Hz
 
-WINDOW_HAMMING = scipy.signal.hamming.__name__  #: (str): Name for calling Hamming window. 'hamming'
+WINDOW_HAMMING = 'hamming'  #: (str): Name for calling Hamming window. 'hamming'
 WINDOW_RECTANGULAR = 'rectangular'  #: (str): Name for calling Rectangular window. 'rectangular'
-WINDOW_HANN = scipy.signal.hann.__name__  #: (str): Name for calling Hann window. 'hann'
-WINDOW_BLACKMAN = scipy.signal.blackman.__name__  #: (str): Name for calling Blackman window. 'blackman'
+WINDOW_HANN = 'hann'  #: (str): Name for calling Hann window. 'hann'
+WINDOW_BLACKMAN = 'blackman'  #: (str): Name for calling Blackman window. 'blackman'
 WINDOW_TRIANGULAR = 'triang'  #: (str): Name for calling Triangular window. 'triangular'
 WINDOW_SQRT_HANN = 'sqrt_hann'  #: (str): Name for calling square root of hann window. 'sqrt_hann'.
 
@@ -73,7 +73,10 @@ Used in :ref:`audio_signal` and in :ref:`mask_base`.
 
 # ############# nussl-extras urls ############# #
 
-NUSSL_EFZ_BASE_URL = 'http://nussl.ci.northwestern.edu/'
+NUSSL_EFZ_BASE_URL = os.environ.get('NUSSL_EFZ_BASE_URL', 'http://nussl.ci.northwestern.edu/')
+#: (list(str)): tried in order when the EFZ can't be reached; each is prefixed to the file URL.
+#: The original EFZ server is offline; the Internet Archive keeps part of it.
+NUSSL_EFZ_MIRRORS = [m for m in os.environ.get('NUSSL_EFZ_MIRRORS', 'https://web.archive.org/web/2022id_/').split(',') if m]
 NUSSL_EFZ_STATIC_BASE_URL = urljoin(NUSSL_EFZ_BASE_URL, 'static/')
 NUSSL_EFZ_AUDIO_URL = urljoin(NUSSL_EFZ_STATIC_BASE_URL, 'audio/')
 NUSSL_EFZ_MODELS_URL = urljoin(NUSSL_EFZ_STATIC_BASE_URL, 'trained_models/')

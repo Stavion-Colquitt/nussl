@@ -31,7 +31,7 @@ except Exception:
     import sox
 
 from .constants import LEVEL_MIN, LEVEL_MAX
-from .utils import _close_temp_files
+from .utils import _close_temp_files, _named_temp_file
 
 
 class FilterFunction:
@@ -97,12 +97,12 @@ def apply_effects_ffmpeg(audio_signal, filters, silent=False):
         input_args['loglevel'] = 'quiet'
 
     with _close_temp_files(tmpfiles):
-        curr_tempfile = tempfile.NamedTemporaryFile(suffix=".wav")
-        out_tempfile = tempfile.NamedTemporaryFile(suffix=".wav")
+        curr_tempfile = _named_temp_file(suffix=".wav")
+        out_tempfile = _named_temp_file(suffix=".wav")
 
         tmpfiles.append(curr_tempfile)
         tmpfiles.append(out_tempfile)
-        audio_signal.write_audio_to_file(curr_tempfile)
+        audio_signal.write_audio_to_file(curr_tempfile.name)
 
         tmpfiles.append(curr_tempfile)
         stream = ffmpeg.input(curr_tempfile.name, **input_args)

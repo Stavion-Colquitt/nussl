@@ -1,9 +1,17 @@
+try:  # ffmpeg for musdb / stempeg on machines without it on PATH (pip install static-ffmpeg)
+    import static_ffmpeg
+    static_ffmpeg.add_paths()
+except ImportError:
+    pass
 import pytest
 from nussl import efz_utils
 import tempfile
 import os
 import musdb
 import zipfile
+import numpy as _np
+if not hasattr(_np, 'Inf'):  # scaper still uses np.Inf, removed in NumPy 2
+    _np.Inf = _np.inf
 import scaper
 import random
 import glob
@@ -13,6 +21,19 @@ from nussl import datasets
 import numpy as np
 import torch
 import json
+import sys
+import shutil
+os.environ.setdefault('MPLBACKEND', 'Agg')  # no Tk on headless / Windows CI
+
+# Windows can't reopen a NamedTemporaryFile while it's open unless delete_on_close=False (3.12+);
+# the tests write to tmp.name inside the `with`, which only worked on Linux / macOS.
+if os.name == 'nt' and sys.version_info >= (3, 12):
+    _ntf = tempfile.NamedTemporaryFile
+    def _ntf_windows(*args, **kwargs):
+        if kwargs.get('delete', True):
+            kwargs.setdefault('delete_on_close', False)
+        return _ntf(*args, **kwargs)
+    tempfile.NamedTemporaryFile = _ntf_windows
 
 
 def _unzip(path_to_zip, target_path):
@@ -22,18 +43,52 @@ def _unzip(path_to_zip, target_path):
 
 fix_dir = os.path.expanduser('~/.nussl/tests/')
 os.makedirs(fix_dir, exist_ok=True)
-OVERWRITE_REGRESSION_DATA = False
+# NUSSL_OVERWRITE_REGRESSION=1 rewrites the stored scores (only after checking a change is expected)
+OVERWRITE_REGRESSION_DATA = os.environ.get('NUSSL_OVERWRITE_REGRESSION') == '1'
 
 
 @pytest.fixture(scope="module")
-def benchmark_audio():
+def benchmark_audio(toy_datasets):
     audio_files = {}
     keys = ['K0140.wav', 'K0149.wav', 'dev1_female3_inst_mix.wav']
     with tempfile.TemporaryDirectory() as tmp_dir:
         _dir = tmp_dir if fix_dir is None else fix_dir
         for k in keys:
-            audio_files[k] = efz_utils.download_audio_file(k, _dir)
+            try:
+                audio_files[k] = efz_utils.download_audio_file(k, _dir)
+            except efz_utils.NoConnectivityError:
+                audio_files[k] = _standin_audio(k, _dir, toy_datasets['babywsj_oW0F0H9.zip'])
         yield audio_files
+
+
+STANDINS = set()
+
+def _standin_audio(name, folder, wsj_dir):
+    """The EFZ server is retired and its audio files were never archived, so build stand-ins
+    with the same names from the (archived) babywsj speech: K0140 / K0149 mono at 44.1 kHz,
+    dev1_female3_inst_mix a 3-speaker stereo instantaneous mix (like the SiSEC file), all 44.1 kHz.
+    Regression data for tests that use them is kept apart (regression_standin/)."""
+    import librosa, soundfile as sf
+    path = os.path.join(folder, 'standin_v2', name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    STANDINS.add(name)
+    if os.path.exists(path):
+        return path
+    wavs = sorted(glob.glob(os.path.join(wsj_dir, '**', '*.wav'), recursive=True))
+    load = lambda i, sr: librosa.load(wavs[i % len(wavs)], sr=sr, mono=True)[0]
+    if name == 'dev1_female3_inst_mix.wav':
+        srcs = [load(i, 44100) for i in (0, 7, 13)]
+        n = min(len(x) for x in srcs)
+        gains = [(0.9, 0.3), (0.55, 0.55), (0.25, 0.95)]
+        mix = np.stack([sum(g[c] * x[:n] for g, x in zip(gains, srcs)) for c in (0, 1)], 1)
+        mix = mix[:len(mix) // 4410 * 4410]
+        sf.write(path, 0.7 * mix / np.abs(mix).max(), 44100, subtype='PCM_16')
+    else:
+        k = 0 if name == 'K0140.wav' else 2
+        y = np.concatenate([load(k, 44100), load(k + 1, 44100)])
+        y = y[:len(y) // 4410 * 4410]  # whole tenths of a second, like the originals
+        sf.write(path, 0.8 * y / np.abs(y).max(), 44100, subtype='PCM_16')
+    return path
 
 
 @pytest.fixture(scope="module")
@@ -93,6 +148,8 @@ def mix_source_folder(toy_datasets):
 
 @pytest.fixture(scope="module")
 def scaper_folder(toy_datasets):
+    if shutil.which('sox') is None:  # scaper renders through the SoX binary
+        pytest.skip('SoX is not installed (needed by scaper to build the test mixtures)')
     wsj_sources = toy_datasets['babywsj_oW0F0H9.zip']
     fg_path = os.path.join(
         wsj_sources, 'babywsj', 'dev')
@@ -172,6 +229,8 @@ def random_noise():
 
 @pytest.fixture(scope="module")
 def bad_scaper_folder(toy_datasets):
+    if shutil.which('sox') is None:  # scaper renders through the SoX binary
+        pytest.skip('SoX is not installed (needed by scaper to build the test mixtures)')
     wsj_sources = toy_datasets['babywsj_oW0F0H9.zip']
     fg_path = os.path.join(
         wsj_sources, 'babywsj', 'dev')
@@ -232,9 +291,13 @@ def one_item(scaper_folder):
     yield data
 
 
-@pytest.fixture(scope="module")
-def check_against_regression_data():
+@pytest.fixture
+def check_against_regression_data(request):
+    standin = 'benchmark_audio' in request.fixturenames and STANDINS
     def check(scores, path, atol=1e-4):
+        if standin:  # scores on stand-in audio are not comparable to the originals
+            path = path.replace('regression', 'regression_standin', 1)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
         if not os.path.exists(path):
             with open(path, 'w') as f:
                 json.dump(scores, f, indent=4)

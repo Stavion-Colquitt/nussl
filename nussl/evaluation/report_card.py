@@ -80,11 +80,11 @@ def _get_mean_and_std(df, decs=2):
 
     means = [
         f'{truncate(m, decs=decs):{4+decs}.{decs}f}' 
-        for m in np.array(df.mean()).T
+        for m in np.array(df[metrics[1:]].mean()).T
     ]
     stds = [
         f'{truncate(s, decs=decs):{3+decs}.{decs}f}' 
-        for s in np.array(df.std()).T
+        for s in np.array(df[metrics[1:]].std()).T
     ]
     data = [f'{m} +/- {s}' for m, s in zip(means, stds)]
     data.insert(0, df.shape[0])
@@ -104,7 +104,7 @@ def _get_medians(df, decs=2):
 
     data = [
         f'{truncate(m, decs=decs):{4+decs}.{decs}f}' 
-        for m in np.array(df.median()).T
+        for m in np.array(df[metrics[1:]].median()).T
     ]
     data.insert(0, df.shape[0])
     return metrics, data

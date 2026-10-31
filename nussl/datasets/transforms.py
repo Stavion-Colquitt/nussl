@@ -14,6 +14,12 @@ from .. import utils
 
 # This is for when you're running multiple
 # training threads
+# The cache is written by nussl itself (Pickle codec for object arrays); numcodecs >= 0.16 refuses
+# to unpickle unless told to. Only point a cache at folders nussl wrote.
+try:
+    numcodecs.pickles.ALLOW_UNSAFE_PICKLE_DECODE = True
+except AttributeError:
+    pass
 if hasattr(numcodecs, 'blosc'):
     numcodecs.blosc.use_threads = False
 
@@ -615,7 +621,7 @@ class Cache(object):
     """
 
     def __init__(self, location, cache_size=1, overwrite=False):
-        self.location = location
+        self.location = os.path.expanduser(location)  # '~/...' used to create a literal '~' folder
         self.cache_size = cache_size
         self.cache = None
         self.overwrite = overwrite

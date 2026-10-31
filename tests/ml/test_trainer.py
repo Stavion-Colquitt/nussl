@@ -87,9 +87,9 @@ def test_create_engine(mix_source_folder):
             trainer.state.output_folder, 'checkpoints', 'latest.optimizer.pth')
 
         opt_state_dict = torch.load(
-            optimizer_path, map_location=lambda storage, loc: storage)
+            optimizer_path, map_location=lambda storage, loc: storage, weights_only=False)
         state_dict = torch.load(
-            model_path, map_location=lambda storage, loc: storage)
+            model_path, map_location=lambda storage, loc: storage, weights_only=False)
 
         optimizer.load_state_dict(opt_state_dict)
         model.load_state_dict(state_dict['state_dict'])

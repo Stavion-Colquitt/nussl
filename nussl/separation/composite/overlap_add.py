@@ -4,7 +4,7 @@ import numpy as np
 import tqdm
 
 class OverlapAdd(SeparationBase):
-    def __init__(self, separation_object, window_duration=15, hop_duration=None, window_type='hanning', 
+    def __init__(self, separation_object, window_duration=15, hop_duration=None, window_type='hann', 
                  find_permutation=False, verbose=False):
         """Apply overlap/add to a long audio file to separate it in chunks.
         Note that if the hop length is not half the window length, COLA
@@ -18,7 +18,7 @@ class OverlapAdd(SeparationBase):
                 If the hop duration is not half the window duration, overlap and add
                 may have strange results. 
             window_type (str): Type of window to apply to each segment before performing overlap and add. 
-                Note that options other than 'hanning' may not result in perfect overlap and add.
+                Note that options other than 'hann' may not result in perfect overlap and add.
             find_permutation (bool): Whether or not to find the permutation between chunks before combining.
             verbose (bool): Whether or not to show a progress bar as file is being separated.
         """
@@ -80,7 +80,7 @@ class OverlapAdd(SeparationBase):
 
     @staticmethod
     def overlap_and_add(windows, padded_signal_shape, sample_rate, window_duration, 
-                        hop_duration, window_type='hanning'):
+                        hop_duration, window_type='hann'):
         """Function which takes a list of windows and overlap adds them into a
         signal the same length as `audio_signal`.
 

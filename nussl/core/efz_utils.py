@@ -352,15 +352,7 @@ def download_audio_file(audio_file_name, local_folder=None, verbose=True):
         >>> piano_signal = nussl.AudioSignal(piano_path)
 
     """
-    file_metadata = _download_metadata_for_file(audio_file_name, 'audio')
-
-    file_hash = file_metadata['file_hash']
-
-    file_url = urljoin(constants.NUSSL_EFZ_AUDIO_URL, audio_file_name)
-    result = _download_file(audio_file_name, file_url, local_folder, 'audio',
-                            file_hash=file_hash, verbose=verbose)
-
-    return result
+    return _efz_download(audio_file_name, 'audio', constants.NUSSL_EFZ_AUDIO_URL, 'audio', local_folder, verbose)
 
 
 def download_trained_model(model_name, local_folder=None, verbose=True):
@@ -389,15 +381,7 @@ def download_trained_model(model_name, local_folder=None, verbose=True):
         >>> piano_signal = nussl.DeepClustering(signal, model_path=model_path)
 
     """
-    file_metadata = _download_metadata_for_file(model_name, 'model')
-
-    file_hash = file_metadata['file_hash']
-
-    file_url = urljoin(constants.NUSSL_EFZ_MODELS_URL, model_name)
-    result = _download_file(model_name, file_url, local_folder, 'models',
-                            file_hash=file_hash, verbose=verbose)
-
-    return result
+    return _efz_download(model_name, 'model', constants.NUSSL_EFZ_MODELS_URL, 'models', local_folder, verbose)
 
 
 def download_benchmark_file(benchmark_name, local_folder=None, verbose=True):
@@ -426,15 +410,41 @@ def download_benchmark_file(benchmark_name, local_folder=None, verbose=True):
         >>> sym_atm = np.load(stm_atn_path)
 
     """
-    file_metadata = _download_metadata_for_file(benchmark_name, 'benchmark')
+    return _efz_download(benchmark_name, 'benchmark', constants.NUSSL_EFZ_BENCHMARKS_URL, 'benchmarks', local_folder, verbose)
 
-    file_hash = file_metadata['file_hash']
 
-    file_url = urljoin(constants.NUSSL_EFZ_BENCHMARKS_URL, benchmark_name)
-    result = _download_file(benchmark_name, file_url, local_folder, 'benchmarks',
-                            file_hash=file_hash, verbose=verbose)
-
-    return result
+def _efz_download(file_name, file_type, url_base, cache_subdir, local_folder, verbose):
+    """
+    Download from the EFZ with its hash check; if the EFZ can't be reached (the original server
+    was retired), fall back to a cached copy, then to the mirrors in
+    ``constants.NUSSL_EFZ_MIRRORS`` (by default the Internet Archive's copy of the EFZ).
+    Mirrored files can't be hash-checked against the EFZ metadata.
+    """
+    file_url = urljoin(url_base, file_name)
+    try:
+        file_metadata = _download_metadata_for_file(file_name, file_type)
+        return _download_file(file_name, file_url, local_folder, cache_subdir,
+                              file_hash=file_metadata['file_hash'], verbose=verbose)
+    except NoConnectivityError:
+        pass
+    if local_folder not in [None, '']:
+        cached = os.path.join(os.path.expanduser(local_folder), file_name)
+    else:
+        cached = os.path.join(os.path.expanduser(os.path.join('~', '.nussl')), cache_subdir, file_name)
+    if os.path.exists(cached) and os.path.getsize(cached) > 0:
+        return cached
+    for mirror in constants.NUSSL_EFZ_MIRRORS:
+        try:
+            if verbose:
+                warnings.warn(f'nussl EFZ unreachable; trying mirror {mirror} for {file_name}')
+            return _download_file(file_name, mirror + file_url, local_folder, cache_subdir,
+                                  file_hash=None, verbose=verbose)
+        except Exception:
+            if os.path.exists(cached) and os.path.getsize(cached) == 0:
+                os.remove(cached)
+            continue
+    raise NoConnectivityError(
+        f'{file_name}: the nussl External File Zoo is offline and no mirror has this file.')
 
 
 def _download_file(file_name, url, local_folder, cache_subdir,

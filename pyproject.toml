@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nussl"
+version = "1.2.0.dev0"
+description = "A flexible sound source separation library (unofficial modernized fork of nussl 1.1.9)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+  { name = "E. Manilow" }, { name = "P. Seetharaman" }, { name = "F. Pishdadian" },
+  { name = "N. Shelly" }, { name = "A. Bugler" }, { name = "B. Pardo" },
+]
+maintainers = [{ name = "Stavion Colquitt (fork)" }]
+keywords = ["audio", "source separation", "music", "sound"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Sound/Audio",
+]
+dependencies = [
+  "numpy>=1.24",
+  "scipy>=1.10",
+  "librosa>=0.10",
+  "resampy",
+  "soundfile",
+  "matplotlib",
+  "jams",
+  "museval",
+  "musdb",
+  "pyyaml",
+  "zarr>=2.11,<3",
+  "numcodecs",
+  "ffmpy",
+  "ffmpeg-python",
+  "torch>=2.0",
+  "pytorch-ignite",
+  "tensorboard",
+  "norbert",
+  "tqdm",
+  "termtables",
+  "gpytorch",
+  "pyloudnorm",
+  "six",
+]
+
+[project.optional-dependencies]
+sox = ["sox", "soxbindings>=1.2.2; platform_system!='Windows'"]
+melodia = ["vamp"]
+test = ["pytest", "pytest-timeout", "scaper", "IPython", "static-ffmpeg"]
+docs = ["sphinx", "sphinx-rtd-theme", "sphinx-autoapi", "m2r2", "autodocsumm", "jupytext", "nbsphinx"]
+
+[project.urls]
+Upstream = "https://github.com/nussl/nussl"
+
+[tool.setuptools.packages.find]
+include = ["nussl*"]
+
+[tool.setuptools.package-data]
+"nussl" = ["core/templates/multitrack.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
+filterwarnings = ["ignore::DeprecationWarning", "ignore::FutureWarning"]
