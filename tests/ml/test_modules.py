@@ -108,7 +108,7 @@ def test_ml_mel_projection(one_item):
         mel_spec = forward(data).cpu().numpy()[0, :, :, 0].T
 
         filters = librosa.filters.mel(
-            16000, 2 * (num_frequencies - 1), n_mel)
+            sr=16000, n_fft=2 * (num_frequencies - 1), n_mels=n_mel)
         filters = (
                 filters.T / (filters.sum(axis=1) + 1e-8)).T
 
@@ -119,7 +119,7 @@ def test_ml_mel_projection(one_item):
 
         assert np.allclose(
             backward.transform.weight.cpu().numpy(),
-            np.linalg.pinv(filters)
+            np.linalg.pinv(filters.astype(np.float64), rcond=1e-6)
         )
 
         _data = data.cpu().numpy()[0, :, :, 0]

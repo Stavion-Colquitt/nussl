@@ -1,8 +1,10 @@
-try:  # ffmpeg for musdb / stempeg on machines without it on PATH (pip install static-ffmpeg)
-    import static_ffmpeg
-    static_ffmpeg.add_paths()
-except ImportError:
-    pass
+import shutil
+if shutil.which('ffmpeg') is None:  # ffmpeg for musdb / stempeg on machines without it on PATH
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+    except Exception:
+        pass
 import pytest
 from nussl import efz_utils
 import tempfile
@@ -311,10 +313,11 @@ def check_against_regression_data(request):
                 if key not in ['permutation', 'combination']:
                     for metric in scores[key]:
                         if metric in reg_scores[key]:
+                            tol = atol.get(metric, 1e-4) if isinstance(atol, dict) else atol
                             assert np.allclose(
                                 scores[key][metric],
                                 reg_scores[key][metric],
-                                atol=atol
+                                atol=tol
                             )
     return check
 

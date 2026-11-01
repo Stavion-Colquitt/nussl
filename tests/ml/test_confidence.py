@@ -120,13 +120,13 @@ def test_get_loud_bins_mask(scaper_folder):
     assert representation[mask].sum() == representation.sum()
 
     mask, _ = ml.confidence._get_loud_bins_mask(100, item['mix'])
-    assert not representation[mask]
+    assert representation[mask].size == 0
 
     mask, _= ml.confidence._get_loud_bins_mask(0, representation=representation)
     assert representation[mask].sum() == representation.sum()
 
     mask, _ = ml.confidence._get_loud_bins_mask(100,  representation=representation)
-    assert not representation[mask]
+    assert representation[mask].size == 0
 
 def test_jensen_shannon_confidence(simple_model):
     model, untrained, item, tensor_data = simple_model

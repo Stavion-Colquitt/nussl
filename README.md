@@ -3,11 +3,7 @@
 
 **Flexible easy-to-use audio source separation**
  
-[![PyPI Status](https://badge.fury.io/py/nussl.svg)](https://badge.fury.io/py/nussl)
-[![Downloads](https://pepy.tech/badge/nussl)](https://pepy.tech/project/nussl)
-
-![Build Status](https://github.com/nussl/nussl/workflows/Build/badge.svg)
-[![codecov](https://codecov.io/gh/nussl/nussl/branch/master/graph/badge.svg)](https://codecov.io/gh/nussl/nussl)
+[![Tests](https://github.com/Stavion-Colquitt/nussl/actions/workflows/tests.yml/badge.svg?branch=modernize)](https://github.com/Stavion-Colquitt/nussl/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -142,13 +138,14 @@ provide a thorough framework for evaluating your source separation research.
 # Installation
 
 
-nussl is on the Python Package Index (PyPI), so it is easy to install with pip:
+This fork is not on PyPI (`pip install nussl` gets the original, archived release).
+Install it from GitHub:
 
 ```
-$ pip install nussl
+$ pip install "nussl @ git+https://github.com/Stavion-Colquitt/nussl@modernize"
 ```
 
-**Note: Requires python 3.7+**
+**Note: Requires python 3.10+** (tested on 3.10, 3.12 and 3.13).
 
 For the functionality in ``nussl.play_utils``, you'll want IPython, and ``ffmpeg``, installed as well:
 

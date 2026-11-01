@@ -270,10 +270,14 @@ class MelProjection(nn.Module):
             mel_filters = librosa.filters.mel(sr=sample_rate, n_fft=2 * (num_frequencies - 1), n_mels=num_mels)
             if normalize:
                 mel_filters = (mel_filters.T / (mel_filters.sum(axis=1) + 1e-8)).T
+            # With more mel bands than the low-frequency FFT bins can support the
+            # filter bank is rank-deficient; NumPy's default pinv cutoff (~1e-15)
+            # then inverts float32 round-off and the weights blow up (~1e13).
+            # Invert in float64 and drop singular values below float32 precision.
             filter_bank = (
                 mel_filters
                 if self.direction == 'forward'
-                else np.linalg.pinv(mel_filters)
+                else np.linalg.pinv(mel_filters.astype(np.float64), rcond=1e-6)
             )
 
             for name, param in self.transform.named_parameters():

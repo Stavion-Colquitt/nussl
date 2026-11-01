@@ -156,6 +156,10 @@ class ClusteringSeparationBase(MaskSeparationBase):
         Returns:
             np.ndarray: Responsibilities for each cluster for each time-frequency point. 
         """
+        if not np.issubdtype(features.dtype, np.floating):
+            # e.g. boolean (one-hot) features: recent scikit-learn mishandles them in
+            # GaussianMixture's covariance estimate, so cluster them as floats
+            features = features.astype(np.float64)
         shape = features.shape
         features_to_fit = features.reshape(-1, shape[-1])
         features_to_fit = features_to_fit[self.tf_point_over_cutoff.flatten(), :]

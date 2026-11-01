@@ -19,7 +19,12 @@ def fx_regression(audio_data, reg_path, check_against_regression_data):
             "sum": np.sum(audio_data, dtype=float, axis=1).tolist()
         }
     }
-    check_against_regression_data(scores, reg_path)
+    # The raw sample sum of an ffmpeg-filtered signal drifts by a few 16-bit LSBs
+    # summed over the clip between ffmpeg releases (6.x vs 8.x differ by up to
+    # ~4e-3 here) while the variance stays within 1e-4, so the sum gets a looser
+    # tolerance.
+    check_against_regression_data(scores, reg_path,
+                                  atol={'variance': 1e-4, 'sum': 1e-2})
 
 
 def test_stretch(mix_and_sources, check_against_regression_data):

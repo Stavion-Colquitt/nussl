@@ -106,3 +106,127 @@ def test_lead_backing_bad_args():
     mono, _, _ = make(mono=True)
     sep = spatial.LeadBacking(mono, pitch_weight=0)
     pytest.raises(SeparationException, sep.run)
+
+
+def _pan(y, p):
+    a = (p + 1) * np.pi / 4
+    return np.stack([np.cos(a) * y, np.sin(a) * y])
+
+
+def _unsure_mix():
+    """0-1 s: lead in the center + backing at +/-0.8 (clear). 1-2 s: one part panned
+    just off the lead (pan index ~1.2 x pan_width -- can't be told apart).
+    2-2.5 s: silence (nothing to flag)."""
+    clear, _, _ = make()
+    clear = clear.audio_data[:, :SR]
+    vague = _pan(voice(330.0, dur=1.0, seed=7), 0.045)
+    silence = np.zeros((2, SR // 2))
+    return nussl.AudioSignal(audio_data_array=np.concatenate([clear, vague, silence], axis=1),
+                             sample_rate=SR)
+
+
+def test_lead_backing_confidence_and_uncertain_regions():
+    sep = spatial.LeadBacking(_unsure_mix())
+    sep.run()
+    t = sep.frame_times()
+    conf = sep.confidence
+    assert conf.shape == t.shape
+    assert np.nanmedian(conf[(t > 0.2) & (t < 0.8)]) > 0.7          # clear part: confident
+    assert np.nanmedian(conf[(t > 1.2) & (t < 1.8)]) < 0.3          # ambiguous part: unsure
+    assert np.isnan(conf[(t > 2.15) & (t < 2.4)]).all()             # silence: not judged
+    regions = sep.uncertain_regions()
+    assert len(regions) == 1
+    r = regions[0]
+    assert r['start'] == pytest.approx(1.0, abs=0.15)
+    assert r['end'] == pytest.approx(2.0, abs=0.15)
+    assert r['confidence'] < 0.3
+    assert r['reason'] == 'between_pans'
+
+
+def test_lead_backing_decorrelated_center_is_flagged():
+    # two independent takes, one per side, both at the lead's level-based center:
+    # pan index ~0 but low coherence (what reverb or wide doubles look like)
+    a, b = voice(220.0, dur=1.5, seed=3), voice(220.0 * 2 ** (7 / 1200), dur=1.5, seed=4)
+    sig = nussl.AudioSignal(audio_data_array=np.stack([a, b]) * 0.5, sample_rate=SR)
+    sep = spatial.LeadBacking(sig)
+    sep.run()
+    regions = sep.uncertain_regions()
+    assert regions and regions[0]['reason'] == 'decorrelated'
+
+
+def test_lead_backing_clear_mix_has_no_flags():
+    mix, _, _ = make()
+    sep = spatial.LeadBacking(mix)
+    sep.run()
+    assert sep.uncertain_regions() == []
+
+
+def test_lead_backing_uncertain_regions_needs_run():
+    mix, _, _ = make()
+    pytest.raises(SeparationException, spatial.LeadBacking(mix).uncertain_regions)
+
+
+def _residue_mix():
+    """0-1.5 s: lead alone, plus a faint (-24 dB) off-center copy of it -- what a separator's
+    leakage / the lead's reverb looks like. 1.5-3 s: lead + a real harmony at +/-0.8."""
+    lead = voice(220.0, dur=3.0, seed=1)
+    rng = np.random.default_rng(0)
+    leak = rng.standard_normal(len(lead))                        # diffuse, like reverb
+    leak *= 10 ** (-24 / 20) * np.std(lead) / np.std(leak)
+    n = len(lead) // 2
+    leak[n:] = 0
+    harm = 2 * voice(220.0 * 2 ** (4 / 12), dur=3.0, seed=5)    # at about the lead's level
+    harm[:n] = 0
+    mix = _pan(lead, 0.0) + _pan(leak, 0.7) + 0.5 * (_pan(harm, -0.8) + _pan(np.roll(harm, 300), 0.8))
+    return nussl.AudioSignal(audio_data_array=mix, sample_rate=SR), n / SR
+
+
+def test_lead_backing_residue_gate():
+    mix, split = _residue_mix()
+    plain = spatial.LeadBacking(mix)
+    plain.run()
+    gated = spatial.LeadBacking(mix, residue_gate_db=5)
+    lead_m, back_m = gated.run()
+    assert np.allclose(lead_m.mask + back_m.mask, 1.0)
+    t = gated.frame_times()
+    first, second = (t > 0.4) & (t < split - 0.5), (t > split + 0.3) & (t < 2.8)
+    _, b_plain = plain.make_audio_signals()
+    _, b_gated = gated.make_audio_signals()
+    sr = mix.sample_rate
+    rms = lambda x, a, b: np.sqrt(np.mean(x[:, int(a * sr):int(b * sr)] ** 2))
+    # leakage alone: the gate hands it back to the lead
+    assert gated.backing_kept[first].mean() < 0.1
+    assert rms(b_gated.audio_data, 0.2, split - 0.3) < 0.2 * rms(b_plain.audio_data, 0.2, split - 0.3)
+    # a real harmony: kept
+    assert gated.backing_kept[second].mean() > 0.85
+    assert rms(b_gated.audio_data, split + 0.3, 2.8) > 0.9 * rms(b_plain.audio_data, split + 0.3, 2.8)
+
+
+def test_lead_backing_quiet_backing_is_flagged():
+    # a harmony mixed ~14 dB under a lead that keeps stopping: the gate keeps it in the
+    # lead's gaps, but over a beat it sits far under the lead -- as likely the lead's own
+    # leakage / reverb as a real quiet part, so it is flagged rather than trusted
+    lead = voice(220.0, dur=3.0, seed=1)
+    t = np.arange(len(lead)) / SR
+    lead *= (np.sin(2 * np.pi * 1.0 * t) > -0.5)                  # sings 2/3 of each second
+    # two takes of the harmony, one per side (one signal panned both ways is a phantom center)
+    takes = [voice(220.0 * 2 ** (4 / 12) * 2 ** (c / 1200), dur=3.0, seed=k) for c, k in ((-6, 5), (5, 6))]
+    harm = 0.5 * (_pan(takes[0], -0.8) + _pan(takes[1], 0.8))
+    mix = nussl.AudioSignal(audio_data_array=_pan(lead, 0.0) + 10 ** (-14 / 20) * harm, sample_rate=SR)
+    sep = spatial.LeadBacking(mix, residue_gate_db=5)
+    sep.run()
+    rel = sep.backing_rel_db
+    assert np.isfinite(rel).any() and np.nanmedian(rel) < -8
+    regions = sep.uncertain_regions()
+    assert regions and regions[0]['reason'] == 'quiet_backing'
+    assert sum(r['end'] - r['start'] for r in regions) > 0.6     # the lead's three gaps
+    # the same harmony up at the lead's level is trusted
+    loud = nussl.AudioSignal(audio_data_array=_pan(lead, 0.0) + harm, sample_rate=SR)
+    sep = spatial.LeadBacking(loud, residue_gate_db=5)
+    sep.run()
+    assert sep.uncertain_regions() == []
+
+
+def test_lead_backing_residue_gate_bad_arg():
+    mix, _, _ = make()
+    pytest.raises(SeparationException, spatial.LeadBacking, mix, residue_gate_db=0)
