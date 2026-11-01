@@ -32,6 +32,19 @@ class LeadBacking(MaskSeparationBase):
     Defaults were tuned on real multitrack stems (two songs, 60 s each: true lead + backing
     summed, and the Demucs vocals of the full mix); see CHANGES_FORK.md for the numbers.
 
+    References:
+        The pan cue builds on the level-based panning index and inter-channel coherence of
+        Avendano's frequency-domain stereo source identification; the pitch cue tracks the
+        lead with pYIN (via librosa).
+
+        C. Avendano, "Frequency-domain source identification and manipulation in stereo
+        mixes for enhancement, suppression and re-panning applications," IEEE Workshop on
+        Applications of Signal Processing to Audio and Acoustics (WASPAA), 2003.
+
+        M. Mauch and S. Dixon, "pYIN: A fundamental frequency estimator using probabilistic
+        threshold distributions," IEEE International Conference on Acoustics, Speech and
+        Signal Processing (ICASSP), 2014.
+
     Parameters:
         input_audio_signal (AudioSignal): vocals to split (stereo for the pan cue).
         lead_pan (float): pan position of the lead, -1 (left) .. 0 (center) .. 1 (right).

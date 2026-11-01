@@ -84,6 +84,12 @@ Splits a vocals-only recording into lead and backing vocals from three cues: pan
 signal; tolerance never narrower than the STFT main lobe), and an optional level prior.
 Cues are combined as weighted log-odds, so a cue with no evidence adds nothing.
 
+Built on: the pan cue follows Avendano's level-based panning index and inter-channel
+coherence (C. Avendano, "Frequency-domain source identification and manipulation in stereo
+mixes for enhancement, suppression and re-panning applications," WASPAA 2003); the pitch cue
+uses pYIN (M. Mauch and S. Dixon, "pYIN: A fundamental frequency estimator using
+probabilistic threshold distributions," ICASSP 2014) through librosa.
+
 Defaults were tuned on real multitrack stems (an independent artist's own sessions, two songs,
 60 s each; the lead is recorded mono and centered, backing layers panned around it). SI-SDR in
 dB, each estimate against the true stem; "baseline" = all vocals used as the estimate:
