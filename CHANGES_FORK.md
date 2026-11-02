@@ -168,3 +168,12 @@ it never causes one. Not yet scored on real stems -- do that before turning it o
 Tests: a louder off-center lead over a quiet center harmony (swapped > 80 % of frames, lead SI-SDR
 +10 dB over the rule off); a normal mix (centered lead, quieter panned backing: < 5 % swapped,
 scores unchanged); a lone L / R backing part before the lead enters (not swapped); bad argument.
+
+Scored on the same three masters (residue gate 5 dB + 20 dB window, rule at 6 dB): it fires
+rarely -- 1.9 %, 3.7 % and 1.6 % of frames -- and the per-window backing agree / precision /
+recall are unchanged on all three (83.6 / 69.5 / 83.1, 79.4 / 58.3 / 90.8, 73.5 / 72.3 / 69.1).
+That metric can't see a swap inside a window where both parts sing, so where it fired the
+estimates were also compared with the true stems (SI-SDR). Only one song's true stems match its
+master closely enough to be scored by waveform. There, the swapped stretches moved toward the
+truth (lead -24.2 -> -19.7 dB, backing -48.4 -> -20.4 dB), but the whole-song lead dropped
+0.55 dB (11.95 -> 11.40). Not enough to turn it on by default; it stays off.
