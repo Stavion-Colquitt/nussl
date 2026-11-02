@@ -24,8 +24,28 @@ class LeadBacking(MaskSeparationBase):
     evidence, 0.5, contributes nothing); the lead mask is that score and the backing mask
     its complement (soft), or the larger of the two (binary).
 
-    Limits: a unison double panned to the same place as the lead, at the same pitch, is
-    invisible to every cue here and stays with the lead. A mono input has no pan cue.
+    Limits (known failure points; see CHANGES_FORK.md for the measurements):
+
+    * A unison double panned to the same place as the lead, at the same pitch, is invisible
+      to every cue here and stays with the lead. A mono input has no pan cue.
+    * **Phantom center.** Two near-identical takes panned left and right (stacked backing,
+      or a lead double-tracked hard L / R) share frequency bins, so their pan index reads as
+      center: the pan cue counts them as lead. Inter-channel coherence does not catch it
+      (the phantom center measured 0.89 - 0.99 coherent).
+    * **Lead off center.** Pan assumes the lead sits at ``lead_pan`` (center by default).
+      A lead mixed elsewhere is called backing unless ``lead_pan`` is set, or the level
+      rule swaps it back (only where the backing estimate is clearly louder).
+    * **Quiet real backing is lost to the residue gate.** Backing mixed more than about
+      ``residue_gate_db`` under the lead while the lead sings is handed to the lead.
+    * **Level rule.** It only swaps where the lead is "singing" (near its usual level AND
+      not a spectral copy of the backing). Real harmonies can score a high similarity to
+      the lead, which blocks a swap: the rule then does less, never the wrong thing. It is
+      scored on few real songs and stays off by default.
+    * **Confidence flags are weak on real mixes.** The pan cue is often confidently wrong
+      (reverb and leakage sit clearly off center), so ``confidence`` and
+      :meth:`uncertain_regions` catch few of the real errors. Use them as hints.
+    * Expects vocals only: whatever a vocals / accompaniment separator leaves in (bleed,
+      master-bus reverb) is split by the same cues.
 
     Run a vocals / accompaniment separator first (e.g. Demucs) -- this expects vocals only.
 

@@ -177,3 +177,23 @@ estimates were also compared with the true stems (SI-SDR). Only one song's true 
 master closely enough to be scored by waveform. There, the swapped stretches moved toward the
 truth (lead -24.2 -> -19.7 dB, backing -48.4 -> -20.4 dB), but the whole-song lead dropped
 0.55 dB (11.95 -> 11.40). Not enough to turn it on by default; it stays off.
+
+### Known failure points of `LeadBacking`
+
+Where it goes wrong, with what was seen. The class docstring carries the short version.
+
+| Failure point | What happens | Evidence | Mitigation |
+|---|---|---|---|
+| Unison double at the lead's position and pitch | Stays with the lead | No cue can see it | None (by design) |
+| Mono input | No pan cue; pitch only | Pitch cue mostly costs on real mixes | Prefer stereo stems |
+| Phantom center (near-identical L / R takes) | Pan index reads center, counted as lead; leaks into the lead estimate | Synthetic: leakage ~12 dB under a real lead; coherence 0.89 - 0.99 (doesn't flag it) | Level rule's "own sound" check keeps it from swapping a lone backing to lead |
+| Lead mixed off center | Called backing | By construction (pan prior at `lead_pan`) | Set `lead_pan`; level rule (`level_rule_db`) swaps where backing is clearly louder |
+| Quiet real backing under a singing lead | Gated into the lead | Real masters: song C recall 92 % -> 70 % with the 5 dB gate | Lower / disable `residue_gate_db` when backing is mixed low |
+| Reverb / leakage off center | Confidently called backing | Real masters: pan certainty as high on wrong windows as right ones | Residue gate (agreement 40-59 % -> 73-84 %) |
+| Confidence flags | Miss most real errors | Real masters: 4-12 % of wrong windows caught after gating | Treat as hints, not a checklist |
+| Level rule blocked by real harmonies | Rule does less (never swaps wrongly for this reason) | Earlier finding: a harmony a third away scored high similarity to the lead | Score on mixes with off-center leads before enabling |
+| Level rule overall cost | Small whole-song loss where it fires | 1 master: swapped stretches better, whole-song lead -0.55 dB | Off by default |
+| Bleed from the vocals / accompaniment separator | Split by the same cues as vocals | Expected; not measured | Better upstream separator |
+
+Not yet tested at all: leads with heavy stereo effects (wideners, ping-pong delay), and
+duets with two lead singers panned apart.
