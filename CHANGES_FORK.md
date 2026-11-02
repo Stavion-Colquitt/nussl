@@ -140,3 +140,31 @@ wrong as where it's right (the errors are confident: reverb and leakage sit clea
 and after gating the flags caught only 4-12 % of the wrong windows. Use them as a hint, not a
 check list. Two other signals were tried and dropped: "the backing is a quieter copy of the
 lead" (spectral similarity) scored a harmony a third away above an echo of the lead.
+
+### Level rule: the louder part is the lead (`level_rule_db`)
+
+Ported from Song-Data-Extractor, where separate stems are labeled with "the quieter of two parts
+singing together is backing" (`vocal_lines.LEVEL_DB`, 6 dB: dev agreement 79.5 -> 83.0, backing
+69.7 -> 80.2 on MoisesDB). Here the parts are the two estimates: over each `residue_window`
+stretch where the lead is singing, if what the cues call backing is `level_rule_db` louder than
+what they call lead, the two are swapped for that stretch (e.g. a lead panned off center over a
+quieter center part, where pan alone picks the wrong one). `swapped` (per frame, 0..1) records it.
+Applied before the residue gate. Off by default.
+
+"The lead is singing" needs two things, both found on constructed mixtures:
+
+- **Level near its usual singing level** (within 15 dB of its 90th percentile; a median is dragged
+  down when the lead is silent for long stretches).
+- **Its own sound, not leakage.** Two near-identical backing takes panned L / R leave a phantom
+  center in the lead estimate, about 12 dB under a real lead, which is too thin a margin. That
+  leakage is a copy of the backing (lead / backing spectral similarity 0.44), while real separate
+  parts measured 0.08 - 0.14; above `LEAK_SIM` (0.3) the lead counts as leakage. Coherence did
+  not tell them apart: the phantom center was coherent too (0.89 - 0.99).
+
+Caution from the gate work above: on real masters a harmony a third away scored a HIGH
+similarity to the lead. If that happens here it only blocks a swap (the rule then does less),
+it never causes one. Not yet scored on real stems -- do that before turning it on by default.
+
+Tests: a louder off-center lead over a quiet center harmony (swapped > 80 % of frames, lead SI-SDR
++10 dB over the rule off); a normal mix (centered lead, quieter panned backing: < 5 % swapped,
+scores unchanged); a lone L / R backing part before the lead enters (not swapped); bad argument.

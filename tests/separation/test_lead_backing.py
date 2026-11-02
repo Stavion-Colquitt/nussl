@@ -230,3 +230,58 @@ def test_lead_backing_quiet_backing_is_flagged():
 def test_lead_backing_residue_gate_bad_arg():
     mix, _, _ = make()
     pytest.raises(SeparationException, spatial.LeadBacking, mix, residue_gate_db=0)
+
+
+# ---- level rule: the louder part is the lead ----------------------------------------------
+def _double_tracked_lead_mix(center_db=-10.0):
+    """The lead panned well off center, with a quieter harmony in the center: pan alone
+    calls the center part the lead. (A lead double-tracked hard L/R is NOT a clean test:
+    two near-identical takes share bins and read as a phantom center, so pan already keeps
+    much of it as lead.)"""
+    lead_st = _pan(voice(220.0, seed=11), -0.9)
+    center = _pan(voice(220.0 * 2 ** (4 / 12), seed=13), 0.0) * 10 ** (center_db / 20)
+    mix = nussl.AudioSignal(audio_data_array=lead_st + center, sample_rate=SR)
+    return mix, lead_st, center
+
+
+def test_lead_backing_level_rule_swaps_a_louder_backing():
+    mix, lead, center = _double_tracked_lead_mix()
+    off = spatial.LeadBacking(mix); off.run()
+    on = spatial.LeadBacking(mix, level_rule_db=6.0); on.run()
+    off_lead, _ = off.make_audio_signals()
+    on_lead, on_back = on.make_audio_signals()
+    assert np.mean(on.swapped) > 0.8                       # swapped nearly everywhere
+    assert not off.swapped.any()                           # rule off: nothing swapped
+    # with the rule the lead estimate is the loud double-tracked lead, not the center harmony
+    assert si_sdr(on_lead.audio_data, lead) > si_sdr(off_lead.audio_data, lead) + 10
+    assert si_sdr(on_back.audio_data, center) > 5
+
+
+def test_lead_backing_level_rule_leaves_a_normal_mix_alone():
+    mix, lead, back = make()                               # centered lead, quieter panned backing
+    off = spatial.LeadBacking(mix); off.run()
+    on = spatial.LeadBacking(mix, level_rule_db=6.0); on.run()
+    assert np.mean(on.swapped) < 0.05
+    assert np.allclose(on.lead_score, off.lead_score, atol=0.05)
+
+
+def test_lead_backing_level_rule_keeps_a_lone_backing_part_backing():
+    """1 s of backing alone (panned), then 1 s of a centered lead over it: the lone backing
+    is louder than the (silent) lead's leakage but must not be swapped to lead."""
+    back = _pan(voice(330.0, seed=21), -0.8) * 0.5 + _pan(voice(331.0, seed=22), 0.8) * 0.5
+    lead = _pan(voice(220.0, seed=23), 0.0)
+    half = back.shape[1] // 2
+    lead[:, :half] = 0.0                                   # the lead only sings in the second half
+    mix = nussl.AudioSignal(audio_data_array=lead + back, sample_rate=SR)
+    sep = spatial.LeadBacking(mix, level_rule_db=6.0); sep.run()
+    t = sep.frame_times()
+    first = t < (half / SR) - 0.3                          # clear of the window around the entry
+    assert np.mean(sep.swapped[first]) < 0.05
+    est_lead, est_back = sep.make_audio_signals()
+    assert si_sdr(est_back.audio_data, back) > 5
+
+
+def test_lead_backing_level_rule_bad_arg():
+    mix, _, _ = make()
+    with pytest.raises(SeparationException):
+        spatial.LeadBacking(mix, level_rule_db=0)

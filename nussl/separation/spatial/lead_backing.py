@@ -70,6 +70,15 @@ class LeadBacking(MaskSeparationBase):
           to the lead mask, so the two masks still sum to one. ``None`` (default): off.
           5 dB worked best on three real masters scored against their true stems.
         residue_window (float), residue_window_db (float): the windowed half of the gate.
+        level_rule_db (float or None): the louder part is the lead. Over each
+          ``residue_window``-second stretch where the lead is singing, if the part the cues
+          call backing is at least this many dB LOUDER than the part they call lead, the two
+          are swapped for that stretch (e.g. a lead double-tracked hard left / right with a
+          quiet pad or double in the center, where pan alone picks the wrong one). Where the
+          lead is silent nothing is swapped: a backing part on its own stays backing. Applied
+          before the residue gate. Mirrors the "quieter is backing" rule used when lead and
+          backing come as separate stems (Song-Data-Extractor ``vocal_lines.LEVEL_DB``, 6 dB).
+          ``None`` (default): off.
         mask_type, mask_threshold: see :class:`MaskSeparationBase`.
 
     Attributes after ``run()``:
@@ -87,6 +96,8 @@ class LeadBacking(MaskSeparationBase):
           ``residue_window`` (``nan`` where no backing is kept, or silence).
         backing_kept (np.ndarray): per frame, 0 .. 1, how much backing the residue gate kept
           (all ones with the gate off).
+        swapped (np.ndarray): per frame, 0 .. 1, how much the level rule swapped lead and
+          backing (all zeros with the rule off).
 
     Knowing where it failed: :meth:`uncertain_regions` lists the stretches where the
     separator could not tell lead from backing (e.g. a part panned just off the lead,
@@ -97,7 +108,8 @@ class LeadBacking(MaskSeparationBase):
     def __init__(self, input_audio_signal, lead_pan=0.0, pan_width=0.03, pan_weight=1.0,
                  pitch_weight=None, level_weight=0.0, fmin=70.0, fmax=1000.0, n_harmonics=20,
                  harmonic_width=50.0, level_floor_db=30.0, residue_gate_db=None,
-                 residue_window=0.5, residue_window_db=20.0, mask_type='soft', mask_threshold=0.5):
+                 residue_window=0.5, residue_window_db=20.0, level_rule_db=None,
+                 mask_type='soft', mask_threshold=0.5):
         super().__init__(input_audio_signal=input_audio_signal, mask_type=mask_type,
                          mask_threshold=mask_threshold)
         if pitch_weight is None:   # auto: pan beats pitch on real stereo mixes; mono has only pitch
@@ -116,6 +128,10 @@ class LeadBacking(MaskSeparationBase):
             raise SeparationException('residue_gate_db must be positive (or None for off)')
         self.residue_gate_db = residue_gate_db
         self.residue_window, self.residue_window_db = residue_window, residue_window_db
+        if level_rule_db is not None and level_rule_db <= 0:
+            raise SeparationException('level_rule_db must be positive (or None for off)')
+        self.level_rule_db = level_rule_db
+        self.swapped = None
         self.backing_kept = self.backing_rel_db = None
         self.f0 = self.pan_index = self.lead_score = self.confidence = None
         self._coherence = None
@@ -186,6 +202,11 @@ class LeadBacking(MaskSeparationBase):
         logit = sum(w * np.log((np.clip(c, eps, 1 - eps)) / (1 - np.clip(c, eps, 1 - eps)))
                     for w, c in cues) / total
         self.lead_score = 1.0 / (1.0 + np.exp(-logit))
+        self.swapped = np.zeros(self.lead_score.shape[1])
+        if self.level_rule_db:                        # the louder part is the lead
+            self.swapped = self._level_swap()
+            s = self.swapped[None, :]
+            self.lead_score = self.lead_score * (1.0 - s) + (1.0 - self.lead_score) * s
         self._mask_score = self.lead_score            # before gating: how sure the cues are
         self.backing_kept = np.ones(self.lead_score.shape[1])
         if self.residue_gate_db:
@@ -222,6 +243,9 @@ class LeadBacking(MaskSeparationBase):
     # QUIET_HIGH_DB and drops to 0 at QUIET_LOW_DB (on three real masters, backing labeled
     # wrongly sat ~-30 dB under the lead over a beat; right ones between -10 and +4 dB)
     QUIET_LOW_DB, QUIET_HIGH_DB = -20.0, -8.0
+    # level rule: lead-vs-backing spectral similarity above this = the 'lead' is leakage of the
+    # backing, not a part of its own (synthetic tests: leakage 0.44, real parts 0.08 - 0.14)
+    LEAK_SIM = 0.3
 
     def _lead_backing_energy(self, score):
         mag2 = np.abs(self.stft) ** 2                                   # freq x time x ch
@@ -241,6 +265,36 @@ class LeadBacking(MaskSeparationBase):
         elw, ebw = uniform_filter1d(el, n), uniform_filter1d(eb, n)
         keep &= (ebw >= elw * 10 ** (-window_db / 10)) | (elw < el.max() * 10 ** (lead_quiet_db / 10))
         return np.clip(uniform_filter1d(keep.astype(float), max(1, int(round(smooth / hop_s)))), 0, 1)
+
+    def _level_swap(self, singing_db=-15.0, silence_db=-50.0, smooth=0.1):
+        """Per frame, 0 .. 1: swap lead and backing where the 'backing' is ``level_rule_db``
+        louder than the 'lead' over ``residue_window`` and the lead is singing -- its part
+        within ``singing_db`` of its usual singing level (90th percentile over the song: a
+        median is dragged down when the lead is silent for long stretches). What is left in
+        the lead while only a backing part sings -- e.g. the phantom center of near-identical
+        L / R backing takes -- sits under that, so a lone backing part is not swapped to lead.
+        Level alone is a thin margin there (phantom center -15 dB vs a real lead -3 dB in the
+        tests; a quiet REAL center part under a loud panned one has the same ratio), so the
+        lead must also be its own sound: leakage is a copy of the backing (same notes, same
+        spectrum; spectral similarity ~0.44 in the tests) while a real separate part is not
+        (0.08 - 0.14). Above ``LEAK_SIM`` the lead counts as leakage, not singing."""
+        from scipy.ndimage import uniform_filter1d
+        hop_s = self.audio_signal.stft_params.hop_length / self.audio_signal.sample_rate
+        el, eb = self._lead_backing_energy(self.lead_score)
+        n = max(1, int(round(self.residue_window / hop_s)))
+        elw, ebw = uniform_filter1d(el, n), uniform_filter1d(eb, n)
+        tot = elw + ebw
+        active = tot >= tot.max() * 10 ** (silence_db / 10)
+        if not active.any():
+            return np.zeros(len(el))
+        typical = np.percentile(elw[active], 90)
+        m = np.abs(self.stft).mean(axis=-1)                           # freq x time
+        a, b = m * self.lead_score, m * (1.0 - self.lead_score)
+        sim = (a * b).sum(0) / (np.linalg.norm(a, axis=0) * np.linalg.norm(b, axis=0) + 1e-20)
+        own_sound = uniform_filter1d(sim, n) < self.LEAK_SIM
+        singing = active & own_sound & (elw >= typical * 10 ** (singing_db / 10))
+        swap = singing & (ebw >= elw * 10 ** (self.level_rule_db / 10))
+        return np.clip(uniform_filter1d(swap.astype(float), max(1, int(round(smooth / hop_s)))), 0, 1)
 
     def _backing_rel_db(self):
         """Per frame: backing minus lead level (dB) over ``residue_window``, where the
